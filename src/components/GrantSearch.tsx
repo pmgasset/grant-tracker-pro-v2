@@ -9,13 +9,10 @@ import {
   Rss,
   Database,
   Globe,
-  Clock,
-  TrendingUp,
-  Filter,
-  RefreshCw
+  RefreshCw,
+  Filter
 } from 'lucide-react';
 import { Grant, SearchFilters, NewGrantForm, SearchResult } from '../types/Grant';
-import { useCloudflareSync } from '../hooks/useCloudflareSync';
 import { formatCurrency, formatDate } from '../utils/formatting';
 
 interface GrantSearchProps {
@@ -197,13 +194,13 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
     }
   };
 
-  const getSourceIcon = (sourceType?: string, isRSSResult?: boolean, isCachedResult?: boolean) => {
+  const getSourceIcon = (isRSSResult?: boolean, isCachedResult?: boolean) => {
     if (isRSSResult) return <Rss className="h-4 w-4 text-orange-600" />;
     if (isCachedResult) return <Database className="h-4 w-4 text-purple-600" />;
     return <Globe className="h-4 w-4 text-blue-600" />;
   };
 
-  const getSourceBadgeColor = (sourceType?: string, isRSSResult?: boolean, isCachedResult?: boolean) => {
+  const getSourceBadgeColor = (isRSSResult?: boolean, isCachedResult?: boolean) => {
     if (isRSSResult) return 'bg-orange-100 text-orange-800';
     if (isCachedResult) return 'bg-purple-100 text-purple-800';
     return 'bg-blue-100 text-blue-800';
@@ -399,8 +396,8 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
                       <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                         {result.matchPercentage}% match
                       </span>
-                      <span className={`px-2 py-1 rounded-full text-xs flex items-center space-x-1 ${getSourceBadgeColor(result.sourceType, result.isRSSResult, result.isCachedResult)}`}>
-                        {getSourceIcon(result.sourceType, result.isRSSResult, result.isCachedResult)}
+                      <span className={`px-2 py-1 rounded-full text-xs flex items-center space-x-1 ${getSourceBadgeColor(result.isRSSResult, result.isCachedResult)}`}>
+                        {getSourceIcon(result.isRSSResult, result.isCachedResult)}
                         <span>{result.sourceType || 'API'}</span>
                       </span>
                       {result.funderType && (
