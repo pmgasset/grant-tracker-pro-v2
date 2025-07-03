@@ -44,7 +44,7 @@ class ErrorBoundary extends React.Component<
             >
               Refresh Page
             </button>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="mt-4 text-left">
                 <summary className="cursor-pointer text-sm text-gray-500">Error Details</summary>
                 <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
@@ -97,19 +97,11 @@ const initializeApp = () => {
   preloadResources();
   
   // Log app version in development
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🚀 Grant Tracker Pro loaded successfully');
-    console.log('Environment:', process.env.NODE_ENV);
-    console.log('Vite mode:', import.meta.env.MODE);
+    console.log('Environment:', import.meta.env.MODE);
   }
 };
 
 // Start the app
 initializeApp();
-
-// Hot module replacement for development
-if (import.meta.hot) {
-  import.meta.hot.accept('./App', () => {
-    initializeApp();
-  });
-}
