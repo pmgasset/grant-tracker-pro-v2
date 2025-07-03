@@ -170,7 +170,7 @@ async function performEnhancedSearch(params: SearchParams, env: Env) {
 async function searchRSSData(params: SearchParams, env: Env) {
   try {
     // Call our RSS scraper
-    const rssUrl = new URL('https://your-worker-domain.workers.dev/rss-scraper');
+    const rssUrl = new URL('https://27fc99b5-grant-tracker-rss-scraper.traveldata.workers.dev');
     rssUrl.searchParams.set('action', 'scrape');
     if (params.category) rssUrl.searchParams.set('category', params.category);
     if (params.fresh === 'true') rssUrl.searchParams.set('fresh', 'true');

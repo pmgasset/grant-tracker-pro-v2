@@ -1,6 +1,12 @@
 import { useCallback, useState } from 'react';
 import { Grant } from '../types/Grant';
 
+// Environment variables for worker URLs
+const ENHANCED_SEARCH_WORKER_URL = import.meta.env.VITE_ENHANCED_SEARCH_WORKER_URL || 
+  'https://grant-tracker-search-enhanced.traveldata.workers.dev';
+const RSS_SCRAPER_WORKER_URL = import.meta.env.VITE_RSS_SCRAPER_WORKER_URL || 
+  'https://27fc99b5-grant-tracker-rss-scraper.traveldata.workers.dev';
+
 export const useCloudflareSync = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
