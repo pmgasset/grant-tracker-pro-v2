@@ -11,14 +11,14 @@ route = { pattern = "grant-tracker-pro.pages.dev/*", zone_name = "pages.dev" }
 # KV Namespaces for data storage
 [[kv_namespaces]]
 binding = "GRANTS_KV"
-id = "your-kv-namespace-id" # You'll get this when creating KV namespace
+id = "557129958b334182b8571299384b7781" # You'll get this when creating KV namespace
 preview_id = "your-preview-kv-namespace-id"
 
 # D1 Database (optional - for advanced queries)
 [[d1_databases]]
 binding = "GRANTS_D1"
 database_name = "grant-tracker-db"
-database_id = "your-d1-database-id" # You'll get this when creating D1 database
+database_id = "a9ac718a-0663-4260-8b55-6c329b01c8cc" # You'll get this when creating D1 database
 
 # Environment variables
 [vars]
