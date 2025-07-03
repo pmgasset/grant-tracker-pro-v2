@@ -7,9 +7,6 @@ import { Grant, GrantStatus } from './types/Grant';
 import { useCloudflareSync } from './hooks/useCloudflareSync';
 import './App.css';
 
-// Initialize with empty grants - will be loaded from real APIs
-const INITIAL_GRANTS: Grant[] = [];
-
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [grants, setGrants] = useState<Grant[]>([]);
