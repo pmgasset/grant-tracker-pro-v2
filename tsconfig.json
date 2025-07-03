@@ -39,13 +39,12 @@
   },
   "include": [
     "src/**/*",
-    "functions/**/*",
     "vite.config.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "build"
-  ],
-  "references": [{ "path": "./tsconfig.node.json" }]
+    "build",
+    "functions"
+  ]
 }
