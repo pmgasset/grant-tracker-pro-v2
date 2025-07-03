@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Target, Zap, Bell, Users, TrendingUp, Search, FileText } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import GrantSearch from './components/GrantSearch';
