@@ -2,100 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Professional grant tracking and discovery platform for nonprofits, powered by Cloudflare" />
-    <meta name="keywords" content="grants, nonprofit, funding, tracking, cloudflare, AI-powered" />
-    <meta name="author" content="Grant Tracker Pro" />
+    <meta name="description" content="Professional grant tracking and discovery platform for nonprofits" />
     
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://grant-tracker-pro.pages.dev/" />
-    <meta property="og:title" content="Grant Tracker Pro - AI-Powered Grant Discovery" />
-    <meta property="og:description" content="Streamline your nonprofit's grant discovery and tracking with AI-powered search and Cloudflare technology." />
-    <meta property="og:image" content="/og-image.png" />
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://grant-tracker-pro.pages.dev/" />
-    <meta property="twitter:title" content="Grant Tracker Pro - AI-Powered Grant Discovery" />
-    <meta property="twitter:description" content="Streamline your nonprofit's grant discovery and tracking with AI-powered search and Cloudflare technology." />
-    <meta property="twitter:image" content="/twitter-image.png" />
-
-    <!-- Preconnect to external domains for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    
-    <!-- PWA manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#3b82f6" />
-    
-    <!-- Apple PWA -->
+    <!-- Mobile Web App -->
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Grant Tracker Pro" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#3b82f6" />
     
-    <title>Grant Tracker Pro - AI-Powered Grant Discovery & Management</title>
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
     
-    <!-- Cloudflare Web Analytics (optional) -->
-    <!-- <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "your-token-here"}'></script> -->
+    <title>Grant Tracker Pro - AI-Powered Grant Discovery</title>
   </head>
-  <body class="antialiased">
+  <body>
     <noscript>
-      <div style="padding: 20px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; margin: 20px; text-align: center;">
-        <h2 style="color: #374151; margin-bottom: 10px;">JavaScript Required</h2>
-        <p style="color: #6b7280;">Grant Tracker Pro requires JavaScript to function properly. Please enable JavaScript in your browser settings and refresh the page.</p>
+      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+        <h2>JavaScript Required</h2>
+        <p>Grant Tracker Pro requires JavaScript to function. Please enable JavaScript and refresh the page.</p>
       </div>
     </noscript>
     
-    <div id="root" class="min-h-screen bg-gray-50"></div>
-    
-    <!-- Loading indicator while app loads -->
-    <div id="initial-loader" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; display: flex; align-items: center; justify-content: center; z-index: 9999;">
-      <div style="text-align: center;">
-        <div style="width: 40px; height: 40px; border: 3px solid #e5e7eb; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
-        <p style="color: #6b7280; font-family: 'Inter', sans-serif;">Loading Grant Tracker Pro...</p>
-      </div>
-    </div>
-    
-    <style>
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      
-      /* Hide loader once React app loads */
-      body.loaded #initial-loader {
-        display: none;
-      }
-    </style>
-    
-    <script>
-      // Remove loader once page is fully loaded
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          document.body.classList.add('loaded');
-        }, 500);
-      });
-      
-      // Service Worker registration for PWA (optional)
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js')
-            .then(function(registration) {
-              console.log('SW registered: ', registration);
-            })
-            .catch(function(registrationError) {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-    </script>
-    
+    <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
