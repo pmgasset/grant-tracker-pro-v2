@@ -47,20 +47,20 @@ interface MonitoringData {
   }>;
 }
 
-const RSSMonitoringDashboard: React.FC = () => {
+const RSSMonitoringDashboard: React.FC = (): JSX.Element => {
   const [monitoringData, setMonitoringData] = useState<MonitoringData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  const fetchMonitoringData = async () => {
+  const fetchMonitoringData = async (): Promise<void> => {
     setIsLoading(true);
     try {
       // Fetch status from RSS scraper
       const statusResponse = await fetch('/api/rss-scraper?action=status');
       const status = await statusResponse.json();
 
-      // Simulate additional monitoring data (in real implementation, this would come from your monitoring system)
+      // Simulate additional monitoring data
       const mockData: MonitoringData = {
         status,
         sources: [
@@ -146,7 +146,7 @@ const RSSMonitoringDashboard: React.FC = () => {
     }
   }, [autoRefresh]);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): JSX.Element => {
     switch (status) {
       case 'active':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
@@ -159,7 +159,7 @@ const RSSMonitoringDashboard: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case 'active':
         return 'bg-green-100 text-green-800';
@@ -172,7 +172,7 @@ const RSSMonitoringDashboard: React.FC = () => {
     }
   };
 
-  const formatTime = (timestamp: string) => {
+  const formatTime = (timestamp: string): string => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
@@ -186,6 +186,7 @@ const RSSMonitoringDashboard: React.FC = () => {
     }
   };
 
+  // Loading state
   if (!monitoringData) {
     return (
       <div className="bg-white rounded-lg shadow-sm border p-6">
@@ -201,6 +202,7 @@ const RSSMonitoringDashboard: React.FC = () => {
     );
   }
 
+  // Main component render
   return (
     <div className="space-y-6">
       {/* Header */}
