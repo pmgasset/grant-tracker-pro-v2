@@ -111,22 +111,29 @@ const Dashboard: React.FC<DashboardProps> = ({ grants, isOnline }) => {
             <span>Recent Activity</span>
           </h3>
           <div className="space-y-3">
-            {grants.slice(0, 5).map(grant => (
-              <div key={grant.id} className="flex items-center space-x-3">
-                <div className={`w-2 h-2 rounded-full ${
-                  grant.status === 'awarded' ? 'bg-green-500' :
-                  grant.status === 'applied' ? 'bg-yellow-500' :
-                  grant.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
-                }`}></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{grant.title}</p>
-                  <p className="text-xs text-gray-500">Updated {formatDate(grant.lastUpdate)}</p>
+            {grants.length > 0 ? (
+              grants.slice(0, 5).map(grant => (
+                <div key={grant.id} className="flex items-center space-x-3">
+                  <div className={`w-2 h-2 rounded-full ${
+                    grant.status === 'awarded' ? 'bg-green-500' :
+                    grant.status === 'applied' ? 'bg-yellow-500' :
+                    grant.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
+                  }`}></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{grant.title}</p>
+                    <p className="text-xs text-gray-500">Updated {formatDate(grant.lastUpdate)}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${statusConfig[grant.status].color}`}>
+                    {statusConfig[grant.status].label}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs ${statusConfig[grant.status].color}`}>
-                  {statusConfig[grant.status].label}
-                </span>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No grants tracked yet</p>
+                <p className="text-gray-400 text-xs mt-1">Start by searching for grant opportunities</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -136,38 +143,81 @@ const Dashboard: React.FC<DashboardProps> = ({ grants, isOnline }) => {
             <span>Urgent Deadlines</span>
           </h3>
           <div className="space-y-3">
-            {grants
-              .filter(g => getDaysUntilDeadline(g.deadline) <= 30 && g.status === 'researching')
-              .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-              .slice(0, 5)
-              .map(grant => {
-                const daysLeft = getDaysUntilDeadline(grant.deadline);
-                return (
-                  <div key={grant.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{grant.title}</p>
-                      <p className="text-xs text-gray-500">{grant.funder}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-medium ${
-                        daysLeft <= 7 ? 'text-red-600' : 
-                        daysLeft <= 14 ? 'text-yellow-600' : 'text-gray-600'
-                      }`}>
-                        {daysLeft} days left
-                      </p>
-                      <p className="text-xs text-gray-500">{formatDate(grant.deadline)}</p>
-                    </div>
+            {grants.length > 0 ? (
+              (() => {
+                const urgentDeadlines = grants
+                  .filter(g => getDaysUntilDeadline(g.deadline) <= 30 && g.status === 'researching')
+                  .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+                  .slice(0, 5);
+                
+                return urgentDeadlines.length > 0 ? (
+                  urgentDeadlines.map(grant => {
+                    const daysLeft = getDaysUntilDeadline(grant.deadline);
+                    return (
+                      <div key={grant.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{grant.title}</p>
+                          <p className="text-xs text-gray-500">{grant.funder}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-medium ${
+                            daysLeft <= 7 ? 'text-red-600' : 
+                            daysLeft <= 14 ? 'text-yellow-600' : 'text-gray-600'
+                          }`}>
+                            {daysLeft > 0 ? `${daysLeft} days left` : 'Expired'}
+                          </p>
+                          <p className="text-xs text-gray-500">{formatDate(grant.deadline)}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 text-sm">No urgent deadlines</p>
+                    <p className="text-gray-400 text-xs mt-1">All deadlines are manageable</p>
                   </div>
                 );
-              })}
-            {grants.filter(g => getDaysUntilDeadline(g.deadline) <= 30 && g.status === 'researching').length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-4">
-                No urgent deadlines at this time
-              </p>
+              })()
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No deadlines to track</p>
+                <p className="text-gray-400 text-xs mt-1">Add grants to monitor deadlines</p>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Empty State for New Users */}
+      {grants.length === 0 && (
+        <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+          <div className="max-w-md mx-auto">
+            <Target className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to GrantTracker Pro</h3>
+            <p className="text-gray-600 mb-6">
+              Start discovering grant opportunities from federal agencies, foundations, and more. 
+              Our AI-powered search connects you with real funding opportunities.
+            </p>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-700">Get started by:</p>
+              <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                  <span>Searching for grants related to your nonprofit's mission</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                  <span>Adding interesting opportunities to your tracker</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                  <span>Monitoring deadlines and application progress</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

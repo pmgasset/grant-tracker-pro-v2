@@ -78,9 +78,9 @@ export const useCloudflareSync = () => {
         throw new Error('Search failed');
       }
     } catch (error) {
-      console.log('Search service unavailable, using fallback');
-      // Return mock results as fallback
-      return generateMockSearchResults(query, filters);
+      console.log('Search service unavailable');
+      // Return empty array if search fails
+      return [];
     }
   }, []);
 
@@ -91,55 +91,4 @@ export const useCloudflareSync = () => {
     isSyncing,
     lastSyncTime
   };
-};
-
-// Fallback function for when search service is unavailable
-const generateMockSearchResults = (query: string, filters: any) => {
-  return [
-    {
-      id: `search-${Date.now()}-1`,
-      title: `${query} Federal Grant Program`,
-      funder: "National Science Foundation",
-      amount: Math.floor(Math.random() * 500000) + 50000,
-      deadline: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      category: filters.category || "Research",
-      description: `Federal funding opportunity for ${query.toLowerCase()} initiatives and community development programs.`,
-      requirements: ["501(c)(3) status", "Detailed project plan", "Community impact assessment"],
-      source: "grants.gov",
-      url: "https://grants.gov/search",
-      matchPercentage: Math.floor(Math.random() * 30) + 70,
-      isSearchResult: true,
-      funderType: "Federal"
-    },
-    {
-      id: `search-${Date.now()}-2`,
-      title: `${query} Innovation Fund`,
-      funder: "Ford Foundation",
-      amount: Math.floor(Math.random() * 300000) + 75000,
-      deadline: new Date(Date.now() + Math.random() * 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      category: filters.category || "Innovation",
-      description: `Private foundation grant supporting innovative approaches to ${query.toLowerCase()} challenges.`,
-      requirements: ["Innovative approach", "Measurable outcomes", "Sustainability plan"],
-      source: "foundation directory",
-      url: "https://foundationdirectory.org",
-      matchPercentage: Math.floor(Math.random() * 25) + 75,
-      isSearchResult: true,
-      funderType: "Private Foundation"
-    },
-    {
-      id: `search-${Date.now()}-3`,
-      title: `Community ${query} Initiative`,
-      funder: "Local Community Foundation",
-      amount: Math.floor(Math.random() * 100000) + 25000,
-      deadline: new Date(Date.now() + Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      category: filters.category || "Community",
-      description: `Regional grant program focused on ${query.toLowerCase()} projects within the local community.`,
-      requirements: ["Local organization", "Community partnership", "Detailed budget"],
-      source: "community foundation",
-      url: "https://communityfoundation.org",
-      matchPercentage: Math.floor(Math.random() * 20) + 80,
-      isSearchResult: true,
-      funderType: "Community Foundation"
-    }
-  ];
 };

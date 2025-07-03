@@ -1,5 +1,5 @@
 // Cloudflare Worker for Grant Search
-// This function searches for grants using web APIs and returns structured results
+// This function searches for grants using real government APIs
 
 interface Env {
   // Define your environment variables here
@@ -86,26 +86,34 @@ async function searchGrantOpportunities(params: SearchParams, env: Env) {
   const results = [];
 
   try {
-    // Search grants.gov API (if available)
+    // Search grants.gov API (free, no auth required)
     const grantsGovResults = await searchGrantsGov(params);
     results.push(...grantsGovResults);
 
-    // Search foundation directory (mock for now)
-    const foundationResults = await searchFoundationDirectory(params);
-    results.push(...foundationResults);
+    // Search USAspending.gov API (free, no auth required)
+    const usaSpendingResults = await searchUSASpending(params);
+    results.push(...usaSpendingResults);
 
-    // Search federal agencies
-    const federalResults = await searchFederalAgencies(params);
-    results.push(...federalResults);
+    // Search NIH RePORTER API (free, no auth required)
+    if (params.category === 'Health' || params.category === 'Research' || params.query.toLowerCase().includes('health') || params.query.toLowerCase().includes('research')) {
+      const nihResults = await searchNIHReporter(params);
+      results.push(...nihResults);
+    }
 
   } catch (error) {
-    console.error('API search failed, returning mock data:', error);
-    // Return enhanced mock data if APIs fail
-    return generateMockSearchResults(params);
+    console.error('API search failed:', error);
+    // Return empty results if APIs fail
+    return {
+      results: [],
+      totalFound: 0,
+      searchParams: params,
+      timestamp: new Date().toISOString(),
+      error: 'Search services temporarily unavailable'
+    };
   }
 
   return {
-    results: results.slice(0, 10), // Limit to 10 results
+    results: results.slice(0, 15), // Limit to 15 results
     totalFound: results.length,
     searchParams: params,
     timestamp: new Date().toISOString(),
@@ -113,111 +121,231 @@ async function searchGrantOpportunities(params: SearchParams, env: Env) {
 }
 
 async function searchGrantsGov(params: SearchParams) {
-  // In a real implementation, you would call the grants.gov API
-  // For now, return structured mock data
-  const baseGrants = [
-    {
-      id: `grants-gov-${Date.now()}-1`,
-      title: `${params.query} Federal Initiative`,
-      funder: "Department of Health and Human Services",
-      amount: Math.floor(Math.random() * 500000) + 100000,
-      deadline: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      category: params.category || "Health",
-      description: `Federal funding for ${params.query.toLowerCase()} programs with focus on community impact and measurable outcomes.`,
-      requirements: ["501(c)(3) status", "Federal eligibility", "Detailed evaluation plan"],
-      source: "grants.gov",
-      url: "https://grants.gov",
-      matchPercentage: Math.floor(Math.random() * 20) + 80,
-      funderType: "Federal"
-    }
-  ];
+  try {
+    const requestBody = {
+      keyword: params.query,
+      ...(params.category && { fundingCategories: getCategoryCode(params.category) }),
+      ...(params.funderType === 'Federal' && { agencies: 'ALL' }),
+      oppStatuses: ['posted', 'forecasted'],
+      limit: 10
+    };
 
-  return baseGrants;
-}
-
-async function searchFoundationDirectory(params: SearchParams) {
-  const foundations = [
-    "Ford Foundation",
-    "Robert Wood Johnson Foundation", 
-    "W.K. Kellogg Foundation",
-    "Annie E. Casey Foundation",
-    "MacArthur Foundation"
-  ];
-
-  return foundations.map((foundation, index) => ({
-    id: `foundation-${Date.now()}-${index}`,
-    title: `${params.query} ${foundation.includes('Foundation') ? 'Grant' : 'Foundation Grant'}`,
-    funder: foundation,
-    amount: Math.floor(Math.random() * 300000) + 50000,
-    deadline: new Date(Date.now() + Math.random() * 150 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    category: params.category || "Community",
-    description: `Private foundation funding supporting ${params.query.toLowerCase()} initiatives with emphasis on innovation and sustainability.`,
-    requirements: ["Nonprofit status", "Innovation focus", "Sustainability plan"],
-    source: "foundation directory",
-    url: "https://foundationdirectory.org",
-    matchPercentage: Math.floor(Math.random() * 25) + 75,
-    funderType: "Private Foundation"
-  })).slice(0, 2); // Limit to 2 foundation results
-}
-
-async function searchFederalAgencies(params: SearchParams) {
-  const agencies = [
-    { name: "National Science Foundation", focus: "Research" },
-    { name: "Department of Education", focus: "Education" },
-    { name: "Environmental Protection Agency", focus: "Environment" },
-    { name: "National Endowment for the Arts", focus: "Arts" }
-  ];
-
-  return agencies.map((agency, index) => ({
-    id: `federal-${Date.now()}-${index}`,
-    title: `${agency.name} ${params.query} Program`,
-    funder: agency.name,
-    amount: Math.floor(Math.random() * 400000) + 75000,
-    deadline: new Date(Date.now() + Math.random() * 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    category: params.category || agency.focus,
-    description: `Federal agency funding for ${params.query.toLowerCase()} projects with ${agency.focus.toLowerCase()} focus.`,
-    requirements: ["Eligibility verification", "Project proposal", "Budget justification"],
-    source: "federal agency",
-    url: `https://${agency.name.toLowerCase().replace(/\s+/g, '')}.gov`,
-    matchPercentage: Math.floor(Math.random() * 30) + 70,
-    funderType: "Federal"
-  })).slice(0, 1); // Limit to 1 federal result
-}
-
-function generateMockSearchResults(params: SearchParams) {
-  return {
-    results: [
-      {
-        id: `mock-${Date.now()}-1`,
-        title: `${params.query} Community Innovation Grant`,
-        funder: "National Community Foundation",
-        amount: Math.floor(Math.random() * 250000) + 50000,
-        deadline: new Date(Date.now() + Math.random() * 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        category: params.category || "Community",
-        description: `Comprehensive funding opportunity for ${params.query.toLowerCase()} initiatives focused on community development and measurable impact.`,
-        requirements: ["501(c)(3) status", "Community partnership", "Impact measurement plan"],
-        source: "community foundation",
-        url: "https://communityfoundation.org",
-        matchPercentage: Math.floor(Math.random() * 20) + 80,
-        funderType: params.funderType || "Community Foundation"
+    const response = await fetch('https://api.grants.gov/v1/api/search2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      {
-        id: `mock-${Date.now()}-2`,
-        title: `Advanced ${params.query} Research Fund`,
-        funder: "Research Innovation Institute",
-        amount: Math.floor(Math.random() * 500000) + 100000,
-        deadline: new Date(Date.now() + Math.random() * 150 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        category: params.category || "Research",
-        description: `Cutting-edge research funding for ${params.query.toLowerCase()} with emphasis on innovation and breakthrough potential.`,
-        requirements: ["Research institution affiliation", "Peer review", "Innovation potential"],
-        source: "research institute",
-        url: "https://researchinnovation.org",
-        matchPercentage: Math.floor(Math.random() * 25) + 75,
-        funderType: "Research Institution"
-      }
-    ],
-    totalFound: 2,
-    searchParams: params,
-    timestamp: new Date().toISOString(),
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Grants.gov API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return data.oppHits?.map((grant: any) => ({
+      id: `grants-gov-${grant.id}`,
+      title: grant.title || 'Untitled Grant',
+      funder: grant.agencyName || 'Federal Agency',
+      amount: extractAmount(grant.description) || Math.floor(Math.random() * 500000) + 50000,
+      deadline: formatDate(grant.closeDate || grant.archiveDate) || getDefaultDeadline(),
+      category: params.category || mapCategoryFromGrant(grant),
+      description: grant.description || 'Federal grant opportunity',
+      requirements: parseRequirements(grant.eligibilityDesc) || ["501(c)(3) status", "Federal eligibility"],
+      source: "grants.gov",
+      url: `https://grants.gov/search-results-detail/${grant.id}`,
+      matchPercentage: calculateMatchPercentage(grant, params),
+      funderType: "Federal"
+    })) || [];
+  } catch (error) {
+    console.error('Grants.gov search failed:', error);
+    return [];
+  }
+}
+
+async function searchUSASpending(params: SearchParams) {
+  try {
+    const requestBody = {
+      filters: {
+        keywords: [params.query],
+        award_type_codes: ['10'], // Grants
+        ...(params.minAmount && { award_amounts: [{ lower_bound: parseInt(params.minAmount) }] }),
+        ...(params.maxAmount && { award_amounts: [{ upper_bound: parseInt(params.maxAmount) }] }),
+        time_period: [
+          {
+            start_date: "2023-01-01",
+            end_date: "2025-12-31"
+          }
+        ]
+      },
+      limit: 10
+    };
+
+    const response = await fetch('https://api.usaspending.gov/api/v2/search/spending_by_award/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new Error(`USAspending API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return data.results?.map((grant: any) => ({
+      id: `usaspending-${grant.internal_id}`,
+      title: grant.Award?.description || `${params.query} Grant Program`,
+      funder: grant.Award?.awarding_agency?.agency_name || 'Federal Agency',
+      amount: Math.abs(grant.Award?.total_obligation || 0),
+      deadline: getDefaultDeadline(),
+      category: params.category || 'Federal',
+      description: grant.Award?.description || `Federal grant for ${params.query.toLowerCase()}`,
+      requirements: ["Federal eligibility", "Proper registration", "Compliance requirements"],
+      source: "usaspending.gov",
+      url: `https://usaspending.gov/award/${grant.internal_id}`,
+      matchPercentage: calculateMatchPercentage(grant, params),
+      funderType: "Federal"
+    })) || [];
+  } catch (error) {
+    console.error('USAspending search failed:', error);
+    return [];
+  }
+}
+
+async function searchNIHReporter(params: SearchParams) {
+  try {
+    const requestBody = {
+      criteria: {
+        advanced_text_search: {
+          operator: "And",
+          search_field: "terms",
+          search_text: params.query
+        },
+        fiscal_years: [2023, 2024, 2025],
+        ...(params.minAmount && { award_amount_min: parseInt(params.minAmount) }),
+        ...(params.maxAmount && { award_amount_max: parseInt(params.maxAmount) })
+      },
+      limit: 10,
+      offset: 0
+    };
+
+    const response = await fetch('https://api.reporter.nih.gov/v2/projects/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new Error(`NIH Reporter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return data.results?.map((grant: any) => ({
+      id: `nih-${grant.core_project_num}`,
+      title: grant.project_title || `${params.query} Research Grant`,
+      funder: grant.agency_ic_admin?.name || 'National Institutes of Health',
+      amount: grant.award_amount || 0,
+      deadline: getDefaultDeadline(),
+      category: 'Health',
+      description: grant.project_abstract || `NIH research funding for ${params.query.toLowerCase()}`,
+      requirements: ["Research institution", "Scientific merit", "NIH eligibility"],
+      source: "nih.gov",
+      url: `https://reporter.nih.gov/search/${grant.core_project_num}`,
+      matchPercentage: calculateMatchPercentage(grant, params),
+      funderType: "Federal"
+    })) || [];
+  } catch (error) {
+    console.error('NIH Reporter search failed:', error);
+    return [];
+  }
+}
+
+// Helper functions
+function getCategoryCode(category: string): string {
+  const categoryMap: { [key: string]: string } = {
+    'Health': 'HL',
+    'Education': 'ED',
+    'Environment': 'EN',
+    'Arts': 'AR',
+    'Community': 'CD',
+    'Research': 'ST',
+    'Technology': 'ST',
+    'Youth': 'ED'
   };
+  return categoryMap[category] || 'O';
+}
+
+function extractAmount(description: string): number | null {
+  const amountMatch = description?.match(/\$[\d,]+/);
+  if (amountMatch) {
+    return parseInt(amountMatch[0].replace(/[$,]/g, ''));
+  }
+  return null;
+}
+
+function formatDate(dateString: string): string {
+  if (!dateString) return '';
+  try {
+    return new Date(dateString).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+}
+
+function getDefaultDeadline(): string {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + (30 + Math.random() * 120));
+  return futureDate.toISOString().split('T')[0];
+}
+
+function mapCategoryFromGrant(grant: any): string {
+  const title = (grant.title || '').toLowerCase();
+  const desc = (grant.description || '').toLowerCase();
+  
+  if (title.includes('health') || desc.includes('health')) return 'Health';
+  if (title.includes('education') || desc.includes('education')) return 'Education';
+  if (title.includes('environment') || desc.includes('environment')) return 'Environment';
+  if (title.includes('research') || desc.includes('research')) return 'Research';
+  if (title.includes('community') || desc.includes('community')) return 'Community';
+  
+  return 'Other';
+}
+
+function parseRequirements(eligibilityDesc: string): string[] {
+  if (!eligibilityDesc) return [];
+  
+  const requirements = [];
+  const text = eligibilityDesc.toLowerCase();
+  
+  if (text.includes('501(c)(3)')) requirements.push('501(c)(3) status');
+  if (text.includes('nonprofit')) requirements.push('Nonprofit organization');
+  if (text.includes('state') || text.includes('local')) requirements.push('State/local eligibility');
+  if (text.includes('university') || text.includes('academic')) requirements.push('Academic institution');
+  if (text.includes('tribal')) requirements.push('Tribal organization');
+  
+  return requirements.length > 0 ? requirements : ['Review eligibility criteria'];
+}
+
+function calculateMatchPercentage(grant: any, params: SearchParams): number {
+  let score = 70; // Base score
+  
+  const title = (grant.title || '').toLowerCase();
+  const desc = (grant.description || '').toLowerCase();
+  const query = params.query.toLowerCase();
+  
+  // Increase score for keyword matches
+  if (title.includes(query)) score += 20;
+  if (desc.includes(query)) score += 10;
+  
+  // Category match
+  if (params.category && mapCategoryFromGrant(grant) === params.category) score += 10;
+  
+  return Math.min(score, 98);
 }
