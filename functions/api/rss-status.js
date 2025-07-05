@@ -1,24 +1,4 @@
-// functions/api/rss-status.js
-// RSS status endpoint - JavaScript version
-
-const RSS_FEEDS = [
-  {
-    url: 'https://www.grants.gov/rss/GG_NewOppByAgency.xml',
-    name: 'Grants.gov New Opportunities',
-    type: 'federal',
-    active: true
-  },
-  {
-    url: 'https://www.nsf.gov/rss/rss_funding.xml',
-    name: 'NSF Funding Opportunities', 
-    type: 'federal',
-    active: true
-  }
-];
-
 export async function onRequestGET(context) {
-  const { request, env } = context;
-  
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -26,42 +6,35 @@ export async function onRequestGET(context) {
   };
 
   try {
-    const statuses = [];
-    
-    for (const feed of RSS_FEEDS) {
-      let status = { status: 'unknown', lastChecked: null, error: null };
-      
-      if (env.GRANTS_KV) {
-        const statusKey = `feed-status:${feed.name}`;
-        const storedStatus = await env.GRANTS_KV.get(statusKey, 'json');
-        if (storedStatus) {
-          status = storedStatus;
-        }
+    const feeds = [
+      {
+        name: 'Grants.gov New Opportunities',
+        url: 'https://www.grants.gov/rss/GG_NewOppByAgency.xml',
+        type: 'federal',
+        active: true,
+        status: 'monitoring'
+      },
+      {
+        name: 'NSF Funding Opportunities',
+        url: 'https://www.nsf.gov/rss/rss_funding.xml',
+        type: 'federal',
+        active: true,
+        status: 'monitoring'
       }
-      
-      statuses.push({
-        name: feed.name,
-        url: feed.url,
-        type: feed.type,
-        active: feed.active,
-        ...status
-      });
-    }
+    ];
     
     return new Response(JSON.stringify({
-      feeds: statuses,
+      feeds: feeds,
       timestamp: new Date().toISOString(),
-      totalFeeds: RSS_FEEDS.length,
-      activeFeeds: RSS_FEEDS.filter(f => f.active).length
+      totalFeeds: feeds.length,
+      message: "RSS status working!"
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
     
   } catch (error) {
-    console.error('RSS status error:', error);
     return new Response(JSON.stringify({
-      error: 'Unable to retrieve RSS feed status',
-      feeds: [],
+      error: 'RSS status error',
       message: error.message
     }), {
       status: 500,
@@ -70,7 +43,7 @@ export async function onRequestGET(context) {
   }
 }
 
-export async function onRequestOPTIONS() {
+export async function onRequestOPTIONS(context) {
   return new Response(null, {
     status: 200,
     headers: {

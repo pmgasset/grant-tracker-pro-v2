@@ -64,7 +64,7 @@ export async function onRequestPOST(context) {
   }
 }
 
-export async function onRequestOPTIONS() {
+export async function onRequestOPTIONS(context) {
   return new Response(null, {
     status: 200,
     headers: {
