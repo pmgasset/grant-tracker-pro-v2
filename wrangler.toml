@@ -1,3 +1,4 @@
+# wrangler.toml - Updated configuration with RSS monitoring
 name = "grant-tracker-pro"
 main = "functions/_worker.js"
 compatibility_date = "2023-12-01"
@@ -12,13 +13,7 @@ route = { pattern = "grant-tracker-pro.pages.dev/*", zone_name = "pages.dev" }
 [[kv_namespaces]]
 binding = "GRANTS_KV"
 id = "557129958b334182b8571299384b7781" # Replace with your actual KV namespace ID
-preview_id = "your-preview-kv-namespace-id"
-
-# Additional KV namespace for RSS caching
-[[kv_namespaces]]
-binding = "RSS_CACHE_KV"
-id = "your-rss-cache-kv-namespace-id" # Create this in Cloudflare dashboard
-preview_id = "your-rss-preview-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id" # Replace with your preview KV namespace ID
 
 # D1 Database (optional - for advanced queries)
 [[d1_databases]]
@@ -30,20 +25,23 @@ database_id = "a9ac718a-0663-4260-8b55-6c329b01c8cc" # Replace with your actual 
 [vars]
 ENVIRONMENT = "production"
 APP_NAME = "Grant Tracker Pro"
-RSS_SCRAPER_URL = "https://grant-tracker-rss-scraper.your-subdomain.workers.dev"
-ENABLE_RSS_SCRAPING = "true"
-RSS_CACHE_TTL = "3600" # 1 hour cache for RSS feeds
-WEBSITE_CACHE_TTL = "14400" # 4 hour cache for website scraping
 
-# Enhanced Functions routing
+# Main grant search function
 [[routes]]
 pattern = "/api/search-grants"
-script = "search-grants-enhanced"
+script = "search-grants"
 
+# RSS monitoring function  
 [[routes]]
-pattern = "/api/rss-scraper"
-script = "rss-scraper"
+pattern = "/api/search-rss-grants"
+script = "rss-monitor"
 
+# RSS monitoring status endpoint
+[[routes]]
+pattern = "/api/rss-status"
+script = "rss-monitor"
+
+# Data persistence functions
 [[routes]]
 pattern = "/api/save-grants"
 script = "save-grants"
@@ -51,19 +49,6 @@ script = "save-grants"
 [[routes]]
 pattern = "/api/load-grants"
 script = "save-grants"
-
-# RSS Scraper Worker Configuration
-# Create this as a separate worker in Cloudflare dashboard
-[env.rss_scraper]
-name = "grant-tracker-rss-scraper"
-compatibility_date = "2023-12-01"
-
-# Cron triggers for automatic RSS updates
-[triggers]
-crons = [
-  "0 */6 * * *",  # Every 6 hours
-  "0 8 * * 1"     # Every Monday at 8 AM (weekly deep scan)
-]
 
 # Worker configuration
 [build]
@@ -76,92 +61,28 @@ format = "modules"
 dir = "functions"
 main = "./_worker.js"
 
+# Scheduled RSS monitoring - runs every 2 hours
+[triggers]
+crons = ["0 */2 * * *"]  # Every 2 hours
+script = "rss-monitor"
+
 # Development configuration
 [env.development]
 name = "grant-tracker-pro-dev"
 kv_namespaces = [
-  { binding = "GRANTS_KV", id = "your-dev-kv-namespace-id" },
-  { binding = "RSS_CACHE_KV", id = "your-dev-rss-cache-kv-namespace-id" }
+  { binding = "GRANTS_KV", id = "your-dev-kv-namespace-id" }
 ]
-
-# RSS-specific development settings
-[env.development.vars]
-RSS_SCRAPER_URL = "http://localhost:8787/rss-scraper"
-ENABLE_RSS_SCRAPING = "true"
-RSS_DEBUG_MODE = "true"
 
 # Limits and settings
 [limits]
-cpu_ms = 50
+cpu_ms = 100  # Increased for RSS processing
 
 # Analytics (optional)
-[analytics_engine_datasets]
-# Uncomment to enable analytics
+# [analytics_engine_datasets]
 # [[analytics_engine_datasets]]
 # binding = "ANALYTICS"
 
-# RSS Performance Monitoring
-[observability]
-enabled = true
-head_sampling_rate = 0.1
-
-# Secrets (set these using Cloudflare dashboard)
-# Navigate to Workers & Pages → Your Worker → Settings → Environment Variables
-# Add these as encrypted environment variables:
-
-# SEARCH_API_KEY = "your-search-api-key" # For external search APIs
-# GRANTS_GOV_API_KEY = "your-grants-gov-api-key" # If you get one
-# FOUNDATION_API_KEY = "your-foundation-directory-key" # If applicable
-# WEBHOOK_SECRET = "your-webhook-secret" # For secure notifications
-
-# Additional RSS Sources Configuration
-# You can add custom RSS feeds by updating the worker code
-# or by setting these as environment variables in the dashboard:
-
-# Custom RSS feeds (JSON format)
-# CUSTOM_RSS_FEEDS = '[{"url":"https://example.org/rss","name":"Custom Source","type":"foundation"}]'
-
-# Website scraping targets (JSON format)  
-# CUSTOM_WEBSITES = '[{"url":"https://foundation.org/grants","name":"Custom Foundation","type":"foundation"}]'
-
-# Rate limiting settings
-# RSS_RATE_LIMIT = "10" # requests per minute to each RSS source
-# WEBSITE_RATE_LIMIT = "5" # requests per minute to each website
-
-# Cache optimization
-# GLOBAL_CACHE_TTL = "1800" # 30 minutes for search results
-# RSS_FEED_CACHE_TTL = "3600" # 1 hour for RSS feeds
-# WEBSITE_CACHE_TTL = "14400" # 4 hours for website scraping
-
-# Feature flags
-# ENABLE_WEBSITE_SCRAPING = "true"
-# ENABLE_FEDERAL_RSS = "true"  
-# ENABLE_FOUNDATION_RSS = "true"
-# ENABLE_STATE_RSS = "true"
-# ENABLE_CORPORATE_RSS = "false"
-
-# Notification settings (for monitoring)
-# SLACK_WEBHOOK_URL = "your-slack-webhook-for-alerts"
-# EMAIL_ALERT_ENDPOINT = "your-email-service-endpoint"
-
-# Geographic settings
-# DEFAULT_LOCATION = "United States"
-# ENABLE_INTERNATIONAL_GRANTS = "false"
-# STATE_PRIORITY_LIST = "CA,NY,TX,FL" # Prioritize certain states
-
-# Performance tuning
-# MAX_RSS_FEEDS_PER_REQUEST = "20"
-# MAX_WEBSITES_PER_REQUEST = "10" 
-# MAX_RESULTS_PER_SOURCE = "10"
-# CONCURRENT_REQUEST_LIMIT = "5"
-
-# Content filtering
-# KEYWORD_FILTER_LIST = "nonprofit,grant,funding,foundation"
-# EXCLUDE_KEYWORD_LIST = "loan,debt,investment"
-# MIN_GRANT_AMOUNT = "1000"
-# MAX_GRANT_AMOUNT = "10000000"
-
-# Backup and fallback settings
-# FALLBACK_API_URL = "your-backup-search-api"
-# ENABLE_MOCK_DATA_FALLBACK = "true"
-# CACHE_FALLBACK_ENABLED = "true"
+# Secrets (set these using: wrangler secret put SECRET_NAME)
+# GRANTS_GOV_API_KEY = "your-grants-gov-api-key"
+# FOUNDATION_DIRECTORY_API_KEY = "your-foundation-directory-api-key"
+# RSS_WEBHOOK_URL = "your-webhook-url-for-notifications"

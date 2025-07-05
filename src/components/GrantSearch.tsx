@@ -1,3 +1,4 @@
+// src/components/GrantSearch.tsx
 import React, { useState } from 'react';
 import { 
   Search, 
@@ -6,13 +7,12 @@ import {
   Shield, 
   ExternalLink, 
   AlertCircle,
-  Rss,
-  Database,
-  Globe,
-  RefreshCw,
-  Filter
+  Wifi,
+  WifiOff,
+  Rss
 } from 'lucide-react';
 import { Grant, SearchFilters, NewGrantForm, SearchResult } from '../types/Grant';
+import { useCloudflareSync } from '../hooks/useCloudflareSync';
 import { formatCurrency, formatDate } from '../utils/formatting';
 
 interface GrantSearchProps {
@@ -20,32 +20,12 @@ interface GrantSearchProps {
   isOnline: boolean;
 }
 
-interface EnhancedSearchResult extends SearchResult {
-  isRSSResult?: boolean;
-  isCachedResult?: boolean;
-  sourceType?: string;
-  datePosted?: string;
-}
-
-interface SearchResponse {
-  results: EnhancedSearchResult[];
-  totalFound: number;
-  sources: Array<{
-    name: string;
-    count: number;
-    status: string;
-    error?: string;
-  }>;
-  enhanced?: boolean;
-}
-
 const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<EnhancedSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchInfo, setSearchInfo] = useState<SearchResponse | null>(null);
-  const [includeRSS, setIncludeRSS] = useState(true);
-  const [forceFresh, setForceFresh] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchSource, setSearchSource] = useState<'web' | 'rss'>('web');
   
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     category: '',
@@ -66,79 +46,41 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
     url: ''
   });
 
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const { searchGrants, searchRSSFeeds } = useCloudflareSync();
 
-  const handleEnhancedSearch = async () => {
+  const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
     setIsSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+    
     try {
-      const searchParams = new URLSearchParams({
-        query: searchQuery,
-        includeRSS: includeRSS.toString(),
-        fresh: forceFresh.toString(),
-        ...searchFilters
-      });
-
-      // Remove empty values
-      Object.keys(searchFilters).forEach(key => {
-        if (!searchFilters[key as keyof SearchFilters]) {
-          searchParams.delete(key);
-        }
-      });
-
-      const response = await fetch(`/api/search-grants?${searchParams}`);
+      let results;
       
-      if (response.ok) {
-        const data: SearchResponse = await response.json();
-        setSearchResults(data.results || []);
-        setSearchInfo(data);
+      if (searchSource === 'rss') {
+        results = await searchRSSFeeds(searchQuery, searchFilters);
       } else {
-        throw new Error('Search failed');
+        results = await searchGrants(searchQuery, searchFilters);
+      }
+      
+      if (results.error) {
+        setSearchError(results.message);
+        setSearchResults([]);
+      } else {
+        setSearchResults(results.results || results);
+        setSearchError(null);
       }
     } catch (error) {
       console.error('Search failed:', error);
-      // Fallback to basic search
-      await handleBasicSearch();
+      setSearchError('Search service is currently unavailable. Please try again later.');
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
-      setForceFresh(false); // Reset after use
     }
   };
 
-  const handleBasicSearch = async () => {
-    // Fallback to your existing search logic
-    const results = generateFallbackResults();
-    setSearchResults(results);
-    setSearchInfo({
-      results,
-      totalFound: results.length,
-      sources: [{ name: 'Fallback', count: results.length, status: 'success' }]
-    });
-  };
-
-  const generateFallbackResults = (): EnhancedSearchResult[] => {
-    return [
-      {
-        id: `fallback-${Date.now()}-1`,
-        title: `${searchQuery} Federal Grant Program`,
-        funder: "National Science Foundation",
-        amount: Math.floor(Math.random() * 500000) + 50000,
-        deadline: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        category: searchFilters.category || "Research",
-        description: `Federal funding opportunity for ${searchQuery.toLowerCase()} initiatives.`,
-        requirements: ["501(c)(3) status", "Detailed project plan", "Community impact assessment"],
-        source: "grants.gov",
-        url: "https://grants.gov/search",
-        matchPercentage: Math.floor(Math.random() * 30) + 70,
-        isSearchResult: true,
-        funderType: "Federal",
-        sourceType: "Fallback"
-      }
-    ];
-  };
-
-  const addGrantFromSearch = (searchResult: EnhancedSearchResult) => {
+  const addGrantFromSearch = (searchResult: SearchResult) => {
     const grant: Omit<Grant, 'id'> = {
       title: searchResult.title,
       funder: searchResult.funder,
@@ -194,49 +136,79 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
     }
   };
 
-  const getSourceIcon = (isRSSResult?: boolean, isCachedResult?: boolean) => {
-    if (isRSSResult) return <Rss className="h-4 w-4 text-orange-600" />;
-    if (isCachedResult) return <Database className="h-4 w-4 text-purple-600" />;
-    return <Globe className="h-4 w-4 text-blue-600" />;
-  };
-
-  const getSourceBadgeColor = (isRSSResult?: boolean, isCachedResult?: boolean) => {
-    if (isRSSResult) return 'bg-orange-100 text-orange-800';
-    if (isCachedResult) return 'bg-purple-100 text-purple-800';
-    return 'bg-blue-100 text-blue-800';
-  };
-
   return (
     <div className="space-y-6">
-      {/* Enhanced AI-Powered Search */}
+      {/* Search Interface */}
       <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-          <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center space-x-2">
             <Search className="h-5 w-5 text-blue-600" />
-            <span>Enhanced Grant Discovery</span>
+            <span>Grant Discovery</span>
             <div className="flex items-center space-x-1 text-orange-600">
               <Zap className="h-4 w-4" />
-              <span className="text-xs font-medium">Multi-Source Search</span>
+              <span className="text-xs font-medium">Cloudflare Workers</span>
             </div>
+          </h3>
+          
+          {/* Connection Status */}
+          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs ${
+            isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            <span>{isOnline ? 'Connected' : 'Offline'}</span>
           </div>
-        </h3>
+        </div>
         
         <div className="space-y-4">
-          {/* Main Search Bar */}
+          {/* Search Source Toggle */}
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setSearchSource('web')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                searchSource === 'web'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Search className="h-4 w-4" />
+                <span>Web Search</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSearchSource('rss')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                searchSource === 'rss'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Rss className="h-4 w-4" />
+                <span>RSS Feeds</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Search Input */}
           <div className="flex space-x-4">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search for grants (e.g., 'nonprofit technology', 'youth education', 'environmental justice')"
+                placeholder={searchSource === 'rss' 
+                  ? "Search RSS feeds (e.g., 'education grants', 'health funding')"
+                  : "Search grants (e.g., 'nonprofit technology', 'youth education')"
+                }
                 className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleEnhancedSearch()}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                disabled={!isOnline}
               />
             </div>
             <button
-              onClick={handleEnhancedSearch}
-              disabled={isSearching || !searchQuery.trim()}
+              onClick={handleSearch}
+              disabled={isSearching || !searchQuery.trim() || !isOnline}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center space-x-2 transition-colors"
             >
               {isSearching ? (
@@ -246,146 +218,116 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
                 </>
               ) : (
                 <>
-                  <Search className="h-4 w-4" />
-                  <span>Search All</span>
+                  {searchSource === 'rss' ? <Rss className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                  <span>Search {searchSource === 'rss' ? 'RSS' : 'Web'}</span>
                 </>
               )}
             </button>
           </div>
-
-          {/* Search Options */}
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={includeRSS}
-                onChange={(e) => setIncludeRSS(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm flex items-center space-x-1">
-                <Rss className="h-3 w-3" />
-                <span>Include RSS Feeds</span>
-              </span>
-            </label>
-            
-            <button
-              onClick={() => setForceFresh(true)}
-              className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-            >
-              <RefreshCw className="h-3 w-3" />
-              <span>Force Fresh Results</span>
-            </button>
-
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className="text-sm text-gray-600 hover:text-gray-800 flex items-center space-x-1"
-            >
-              <Filter className="h-3 w-3" />
-              <span>Advanced Filters</span>
-            </button>
-          </div>
           
           {/* Advanced Search Filters */}
-          {showAdvancedFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
-              <select
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                value={searchFilters.category}
-                onChange={(e) => setSearchFilters({...searchFilters, category: e.target.value})}
-              >
-                <option value="">All Categories</option>
-                <option value="Education">Education</option>
-                <option value="Health">Health & Wellness</option>
-                <option value="Environment">Environment</option>
-                <option value="Arts">Arts & Culture</option>
-                <option value="Community">Community Development</option>
-                <option value="Youth">Youth Services</option>
-                <option value="Technology">Technology</option>
-                <option value="Research">Research</option>
-              </select>
-              <select
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                value={searchFilters.funderType}
-                onChange={(e) => setSearchFilters({...searchFilters, funderType: e.target.value})}
-              >
-                <option value="">All Funders</option>
-                <option value="Federal">Federal Government</option>
-                <option value="State">State Government</option>
-                <option value="Private Foundation">Private Foundation</option>
-                <option value="Community Foundation">Community Foundation</option>
-                <option value="Corporate">Corporate</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Min Amount"
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                value={searchFilters.minAmount}
-                onChange={(e) => setSearchFilters({...searchFilters, minAmount: e.target.value})}
-              />
-              <input
-                type="number"
-                placeholder="Max Amount"
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                value={searchFilters.maxAmount}
-                onChange={(e) => setSearchFilters({...searchFilters, maxAmount: e.target.value})}
-              />
-              <input
-                type="text"
-                placeholder="Location/State"
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                value={searchFilters.location}
-                onChange={(e) => setSearchFilters({...searchFilters, location: e.target.value})}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <select
+              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              value={searchFilters.category}
+              onChange={(e) => setSearchFilters({...searchFilters, category: e.target.value})}
+              disabled={!isOnline}
+            >
+              <option value="">All Categories</option>
+              <option value="Education">Education</option>
+              <option value="Health">Health & Wellness</option>
+              <option value="Environment">Environment</option>
+              <option value="Arts">Arts & Culture</option>
+              <option value="Community">Community Development</option>
+              <option value="Youth">Youth Services</option>
+              <option value="Technology">Technology</option>
+              <option value="Research">Research</option>
+            </select>
+            <select
+              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              value={searchFilters.funderType}
+              onChange={(e) => setSearchFilters({...searchFilters, funderType: e.target.value})}
+              disabled={!isOnline}
+            >
+              <option value="">All Funders</option>
+              <option value="Federal">Federal Government</option>
+              <option value="State">State Government</option>
+              <option value="Private Foundation">Private Foundation</option>
+              <option value="Community Foundation">Community Foundation</option>
+              <option value="Corporate">Corporate</option>
+            </select>
+            <input
+              type="number"
+              placeholder="Min Amount"
+              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              value={searchFilters.minAmount}
+              onChange={(e) => setSearchFilters({...searchFilters, minAmount: e.target.value})}
+              disabled={!isOnline}
+            />
+            <input
+              type="number"
+              placeholder="Max Amount"
+              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              value={searchFilters.maxAmount}
+              onChange={(e) => setSearchFilters({...searchFilters, maxAmount: e.target.value})}
+              disabled={!isOnline}
+            />
+            <input
+              type="text"
+              placeholder="Location/State"
+              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              value={searchFilters.location}
+              onChange={(e) => setSearchFilters({...searchFilters, location: e.target.value})}
+              disabled={!isOnline}
+            />
+          </div>
+
+          {/* Offline Notice */}
+          {!isOnline && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-yellow-800 text-sm flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Search is unavailable offline. Connect to internet to search for new grants, or add grants manually below.
+              </p>
             </div>
           )}
 
-          {!isOnline && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-yellow-800 text-sm">
-                <AlertCircle className="h-4 w-4 inline mr-2" />
-                Limited search functionality offline. RSS feeds and real-time data unavailable.
-              </p>
+          {/* Search Error Display */}
+          {searchError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-red-800 font-medium">Search Unavailable</h4>
+                  <p className="text-red-700 text-sm mt-1">{searchError}</p>
+                  <p className="text-red-600 text-xs mt-2">
+                    You can still add grants manually using the form below.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Search Results Info */}
-      {searchInfo && (
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">
-              Search Results ({searchInfo.totalFound} found)
-            </h3>
-            <div className="flex items-center space-x-1 text-green-600 text-sm">
-              <Shield className="h-4 w-4" />
-              <span>Multi-Source Verified</span>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            {searchInfo.sources.map((source, idx) => (
-              <div key={idx} className="flex items-center space-x-2">
-                {source.name.includes('RSS') && <Rss className="h-4 w-4 text-orange-600" />}
-                {source.name.includes('Cache') && <Database className="h-4 w-4 text-purple-600" />}
-                {source.name.includes('API') && <Globe className="h-4 w-4 text-blue-600" />}
-                <span className="font-medium">{source.name}:</span>
-                <span className={source.status === 'success' ? 'text-green-600' : 'text-red-600'}>
-                  {source.count} results
-                </span>
-                {source.status !== 'success' && (
-                  <span className="text-red-500 text-xs">({source.status})</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Search Results */}
+      {/* Search Results */}
       {searchResults.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold mb-4">Grant Opportunities</h3>
+          <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
+            <span>Search Results ({searchResults.length} found)</span>
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-1 text-green-600 text-sm">
+                <Shield className="h-4 w-4" />
+                <span>Verified Sources</span>
+              </div>
+              {searchSource === 'rss' && (
+                <div className="flex items-center space-x-1 text-blue-600 text-sm">
+                  <Rss className="h-4 w-4" />
+                  <span>RSS Feeds</span>
+                </div>
+              )}
+            </div>
+          </h3>
           <div className="space-y-4">
             {searchResults.map(result => (
               <div key={result.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -396,23 +338,27 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
                       <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                         {result.matchPercentage}% match
                       </span>
-                      <span className={`px-2 py-1 rounded-full text-xs flex items-center space-x-1 ${getSourceBadgeColor(result.isRSSResult, result.isCachedResult)}`}>
-                        {getSourceIcon(result.isRSSResult, result.isCachedResult)}
-                        <span>{result.sourceType || 'API'}</span>
-                      </span>
                       {result.funderType && (
                         <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
                           {result.funderType}
+                        </span>
+                      )}
+                      {searchSource === 'rss' && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs flex items-center space-x-1">
+                          <Rss className="h-3 w-3" />
+                          <span>RSS</span>
                         </span>
                       )}
                     </div>
                     <p className="text-gray-700 font-medium mb-2">{result.funder}</p>
                     <p className="text-sm text-gray-600 mb-3">{result.description}</p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
                       <div>
                         <span className="font-medium text-gray-700">Award Amount:</span>
-                        <p className="text-green-600 font-semibold">{formatCurrency(result.amount)}</p>
+                        <p className="text-green-600 font-semibold">
+                          {result.amount > 0 ? formatCurrency(result.amount) : 'Amount TBD'}
+                        </p>
                       </div>
                       <div>
                         <span className="font-medium text-gray-700">Deadline:</span>
@@ -422,15 +368,9 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
                         <span className="font-medium text-gray-700">Source:</span>
                         <p className="text-blue-600 capitalize">{result.source}</p>
                       </div>
-                      {result.datePosted && (
-                        <div>
-                          <span className="font-medium text-gray-700">Posted:</span>
-                          <p className="text-gray-600">{formatDate(result.datePosted)}</p>
-                        </div>
-                      )}
                     </div>
 
-                    {result.requirements && (
+                    {result.requirements && result.requirements.length > 0 && (
                       <div className="mb-3">
                         <span className="font-medium text-gray-700">Requirements:</span>
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -468,6 +408,17 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Empty Search Results */}
+      {!isSearching && searchQuery && searchResults.length === 0 && !searchError && (
+        <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
+          <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No grants found</h3>
+          <p className="text-gray-500 mb-4">
+            No grants matched your search for "{searchQuery}". Try different keywords or add a grant manually.
+          </p>
         </div>
       )}
 
