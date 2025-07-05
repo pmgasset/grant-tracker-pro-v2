@@ -1,5 +1,5 @@
 // functions/api/search-rss-grants.ts
-// Cloudflare Pages Function for RSS Grant Monitoring
+// RSS Grant Monitoring - NO FALLBACK DATA VERSION
 
 interface Env {
   GRANTS_KV: KVNamespace;
@@ -59,8 +59,9 @@ export async function onRequestGET(context: any) {
   } catch (error) {
     console.error('RSS Function error:', error);
     return new Response(JSON.stringify({
-      error: 'RSS monitoring service error',
-      message: 'Unable to process RSS feeds at this time'
+      error: true,
+      message: 'RSS monitoring service is currently unavailable. Please try again later.',
+      results: []
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -82,8 +83,8 @@ export async function onRequestOPTIONS() {
 async function searchRSSFeeds(query: string, searchParams: URLSearchParams, env: Env, corsHeaders: Record<string, string>) {
   if (!query) {
     return new Response(JSON.stringify({
-      error: 'Query parameter required',
-      message: 'Please provide a search query',
+      error: true,
+      message: 'Please provide a search query for RSS feeds.',
       results: []
     }), {
       status: 400,
@@ -91,49 +92,102 @@ async function searchRSSFeeds(query: string, searchParams: URLSearchParams, env:
     });
   }
 
+  console.log(`Searching RSS feeds for: ${query}`);
+
   try {
-    // Check if we have cached RSS data first
     const today = new Date().toISOString().split('T')[0];
     const searchResults = [];
+    let feedsAttempted = 0;
+    let feedsSuccessful = 0;
 
     for (const feed of RSS_FEEDS) {
       if (!feed.active) continue;
+      feedsAttempted++;
 
       try {
-        // Try to get cached data
-        const cacheKey = `rss-grants:${feed.name}:${today}`;
-        const cached = await env.GRANTS_KV.get(cacheKey, 'json');
+        console.log(`Checking feed: ${feed.name}`);
         
-        if (cached && cached.grants) {
-          // Search cached grants
-          const matching = cached.grants.filter((grant: any) => 
-            grant.title.toLowerCase().includes(query.toLowerCase()) ||
-            grant.description.toLowerCase().includes(query.toLowerCase())
-          );
-          searchResults.push(...matching);
+        // Try cached data first
+        const cacheKey = `rss-grants:${feed.name}:${today}`;
+        let grants = [];
+        
+        const cached = await env.GRANTS_KV?.get(cacheKey, 'json');
+        if (cached && cached.grants && Array.isArray(cached.grants) && cached.grants.length > 0) {
+          console.log(`Found ${cached.grants.length} cached grants from ${feed.name}`);
+          grants = cached.grants;
+          feedsSuccessful++;
         } else {
-          // If no cache, try to fetch fresh data
-          const freshGrants = await fetchFeedData(feed);
-          if (freshGrants.length > 0) {
-            await cacheFeedData(feed, freshGrants, env);
-            const matching = freshGrants.filter((grant: any) => 
-              grant.title.toLowerCase().includes(query.toLowerCase()) ||
-              grant.description.toLowerCase().includes(query.toLowerCase())
-            );
+          console.log(`No cache for ${feed.name}, fetching fresh data...`);
+          // Try to fetch fresh data
+          grants = await fetchFeedData(feed);
+          if (grants.length > 0) {
+            feedsSuccessful++;
+            await cacheFeedData(feed, grants, env);
+            console.log(`Fetched and cached ${grants.length} grants from ${feed.name}`);
+          } else {
+            console.log(`No grants found in ${feed.name}`);
+          }
+        }
+
+        // Search for matching grants
+        if (grants.length > 0) {
+          const queryLower = query.toLowerCase();
+          const matching = grants.filter((grant: any) => {
+            if (!grant.title || !grant.description) return false;
+            return grant.title.toLowerCase().includes(queryLower) ||
+                   grant.description.toLowerCase().includes(queryLower);
+          });
+          
+          if (matching.length > 0) {
+            console.log(`Found ${matching.length} matching grants in ${feed.name}`);
             searchResults.push(...matching);
           }
         }
+
       } catch (feedError) {
         console.error(`Error processing feed ${feed.name}:`, feedError);
         // Continue with other feeds
       }
     }
 
+    console.log(`Search complete: ${feedsAttempted} feeds attempted, ${feedsSuccessful} successful, ${searchResults.length} total results`);
+
+    // NO FALLBACK DATA - Return actual results or honest error
+    if (feedsSuccessful === 0) {
+      return new Response(JSON.stringify({
+        error: true,
+        message: 'All RSS feeds are currently unavailable. This could be due to network issues or the feeds being temporarily down. Please try again later or add grants manually.',
+        results: [],
+        feedsAttempted,
+        feedsSuccessful: 0,
+        timestamp: new Date().toISOString()
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    if (searchResults.length === 0) {
+      return new Response(JSON.stringify({
+        error: false,
+        message: `No grants found matching "${query}" in the available RSS feeds. Try different search terms or check back later for new grant postings.`,
+        results: [],
+        feedsAttempted,
+        feedsSuccessful,
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Return actual RSS results
     return new Response(JSON.stringify({
       results: searchResults.slice(0, 15),
       totalFound: searchResults.length,
       query,
       source: 'rss',
+      feedsAttempted,
+      feedsSuccessful,
       timestamp: new Date().toISOString()
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -143,7 +197,7 @@ async function searchRSSFeeds(query: string, searchParams: URLSearchParams, env:
     console.error('RSS search error:', error);
     return new Response(JSON.stringify({
       error: true,
-      message: 'RSS search is temporarily unavailable. Please try web search or add grants manually.',
+      message: 'RSS search service encountered an error. Please try again later or add grants manually.',
       results: []
     }), {
       status: 500,
@@ -152,42 +206,57 @@ async function searchRSSFeeds(query: string, searchParams: URLSearchParams, env:
   }
 }
 
-async function fetchFeedData(feed: any) {
+async function fetchFeedData(feed: any): Promise<any[]> {
   try {
-    console.log(`Fetching RSS feed: ${feed.name}`);
+    console.log(`Fetching RSS feed: ${feed.url}`);
     
     const response = await fetch(feed.url, {
       headers: {
         'User-Agent': 'Grant Tracker Pro RSS Reader/1.0',
         'Accept': 'application/rss+xml, application/xml, text/xml'
-      }
+      },
+      signal: AbortSignal.timeout(10000) // 10 second timeout
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      console.error(`RSS feed ${feed.name} returned ${response.status}: ${response.statusText}`);
+      return [];
     }
 
     const xmlText = await response.text();
-    const grants = parseRSSFeed(xmlText, feed);
     
-    console.log(`Parsed ${grants.length} grants from ${feed.name}`);
+    if (!xmlText || xmlText.trim().length === 0) {
+      console.error(`RSS feed ${feed.name} returned empty content`);
+      return [];
+    }
+
+    // Basic XML validation
+    if (!xmlText.includes('<rss') && !xmlText.includes('<feed') && !xmlText.includes('<?xml')) {
+      console.error(`RSS feed ${feed.name} did not return valid XML`);
+      return [];
+    }
+
+    const grants = parseRSSFeed(xmlText, feed);
+    console.log(`Successfully parsed ${grants.length} grants from ${feed.name}`);
     return grants;
     
   } catch (error) {
-    console.error(`Error fetching feed ${feed.url}:`, error);
-    return [];
+    console.error(`Failed to fetch RSS feed ${feed.url}:`, error);
+    return []; // Always return empty array - NEVER generate fake data
   }
 }
 
-function parseRSSFeed(xmlText: string, feed: any) {
+function parseRSSFeed(xmlText: string, feed: any): any[] {
   const grants = [];
   
   try {
-    // Simple RSS parsing using regex (works in Cloudflare environment)
+    // Extract RSS items using regex
     const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
     const items = xmlText.match(itemRegex) || [];
     
-    for (const item of items.slice(0, 8)) { // Limit to 8 items per feed
+    console.log(`Found ${items.length} items in ${feed.name} RSS feed`);
+
+    for (const item of items.slice(0, 10)) { // Limit to 10 items per feed
       try {
         const grant = parseRSSItem(item, feed);
         if (grant && isValidGrant(grant)) {
@@ -216,11 +285,10 @@ function parseRSSItem(itemXml: string, feed: any) {
   const link = extractTag(itemXml, 'link');
   const pubDate = extractTag(itemXml, 'pubDate');
 
-  if (!title || title.length < 10) {
+  if (!title || title.length < 5) {
     return null;
   }
 
-  // Generate a consistent ID
   const id = `rss-${feed.name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
   return {
@@ -233,8 +301,8 @@ function parseRSSItem(itemXml: string, feed: any) {
     description: description.substring(0, 400),
     requirements: extractRequirements(description),
     source: `RSS: ${feed.name}`,
-    url: link,
-    matchPercentage: 75,
+    url: link || feed.url,
+    matchPercentage: 80,
     funderType: feed.type === 'federal' ? 'Federal' : 'Foundation',
     pubDate: pubDate,
     feedSource: feed.name,
@@ -256,21 +324,22 @@ function cleanText(text: string): string {
 }
 
 function extractFunder(description: string, feed: any): string {
+  // Try to extract actual funder from content
   const patterns = [
     /funded by ([^.;,]{5,50})/i,
-    /(\w+ foundation)/i,
-    /(department of [^.;,]{5,30})/i,
-    /(national \w+)/i
+    /(\w+ foundation[^.;,]{0,20})/i,
+    /(department of [^.;,]{5,40})/i,
+    /(national [^.;,]{5,40})/i
   ];
   
   for (const pattern of patterns) {
     const match = description.match(pattern);
-    if (match) {
+    if (match && match[1].trim().length > 3) {
       return match[1].trim();
     }
   }
   
-  return feed.name;
+  return feed.name; // Use feed name as fallback, not fake data
 }
 
 function extractAmount(text: string): number {
@@ -287,11 +356,11 @@ function extractAmount(text: string): number {
       if (match[2] && (match[2].toLowerCase() === 'million' || match[2].toLowerCase() === 'm')) {
         amount *= 1000000;
       }
-      return amount;
+      if (amount > 0) return amount;
     }
   }
   
-  return 0;
+  return 0; // Return 0 if no amount found - don't fake it
 }
 
 function extractDeadline(description: string, pubDate: string): string {
@@ -311,19 +380,28 @@ function extractDeadline(description: string, pubDate: string): string {
     }
   }
   
-  // Default to 45 days from publication or today
-  const baseDate = pubDate ? new Date(pubDate) : new Date();
-  const futureDate = new Date(baseDate.getTime() + 45 * 24 * 60 * 60 * 1000);
+  // Use publication date + reasonable time if available
+  if (pubDate) {
+    const baseDate = new Date(pubDate);
+    if (!isNaN(baseDate.getTime())) {
+      const futureDate = new Date(baseDate.getTime() + 60 * 24 * 60 * 60 * 1000);
+      return futureDate.toISOString().split('T')[0];
+    }
+  }
+  
+  // Default to 60 days from now
+  const futureDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
   return futureDate.toISOString().split('T')[0];
 }
 
 function extractCategory(text: string): string {
   const categories = {
-    'Health': ['health', 'medical', 'healthcare', 'disease'],
-    'Education': ['education', 'school', 'student', 'learning'],
-    'Environment': ['environment', 'climate', 'conservation'],
-    'Technology': ['technology', 'innovation', 'research'],
-    'Community': ['community', 'social', 'development']
+    'Health': ['health', 'medical', 'healthcare', 'disease', 'wellness'],
+    'Education': ['education', 'school', 'student', 'learning', 'academic'],
+    'Environment': ['environment', 'climate', 'conservation', 'sustainability'],
+    'Technology': ['technology', 'innovation', 'research', 'digital'],
+    'Community': ['community', 'social', 'development', 'housing'],
+    'Arts': ['arts', 'culture', 'humanities', 'creative']
   };
   
   const lowerText = text.toLowerCase();
@@ -355,18 +433,22 @@ function extractRequirements(description: string): string[] {
 }
 
 function isValidGrant(grant: any): boolean {
-  return grant.title && 
-         grant.title.length > 10 && 
+  return grant && 
+         grant.title && 
+         grant.title.length > 5 && 
          grant.description && 
-         grant.description.length > 20;
+         grant.description.length > 10 &&
+         grant.funder;
 }
 
 async function cacheFeedData(feed: any, grants: any[], env: Env) {
+  if (!grants || grants.length === 0) return;
+  
   try {
     const today = new Date().toISOString().split('T')[0];
     const cacheKey = `rss-grants:${feed.name}:${today}`;
     
-    await env.GRANTS_KV.put(cacheKey, JSON.stringify({
+    await env.GRANTS_KV?.put(cacheKey, JSON.stringify({
       feed: feed.name,
       grants,
       timestamp: new Date().toISOString(),
@@ -399,10 +481,12 @@ async function monitorAllFeeds(env: Env, corsHeaders: Record<string, string>) {
       if (grants.length > 0) {
         await cacheFeedData(feed, grants, env);
         results.newGrants += grants.length;
+        results.successful++;
+      } else {
+        results.failed++;
       }
       
-      results.successful++;
-      await updateFeedStatus(feed, 'success', null, env);
+      await updateFeedStatus(feed, grants.length > 0 ? 'success' : 'empty', null, env);
       
     } catch (error) {
       console.error(`Feed error ${feed.url}:`, error);
@@ -427,7 +511,7 @@ async function monitorAllFeeds(env: Env, corsHeaders: Record<string, string>) {
 async function updateFeedStatus(feed: any, status: string, error: string | null, env: Env) {
   try {
     const statusKey = `feed-status:${feed.name}`;
-    await env.GRANTS_KV.put(statusKey, JSON.stringify({
+    await env.GRANTS_KV?.put(statusKey, JSON.stringify({
       feed: feed.name,
       status,
       error,
@@ -447,7 +531,7 @@ async function getFeedStatus(env: Env, corsHeaders: Record<string, string>) {
     
     for (const feed of RSS_FEEDS) {
       const statusKey = `feed-status:${feed.name}`;
-      const status = await env.GRANTS_KV.get(statusKey, 'json');
+      const status = await env.GRANTS_KV?.get(statusKey, 'json');
       
       statuses.push({
         name: feed.name,
