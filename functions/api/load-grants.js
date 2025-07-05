@@ -1,12 +1,7 @@
-// functions/api/load-grants.ts
-// Fixed with proper GET handling
+// functions/api/load-grants.js
+// Load grants data - JavaScript version
 
-interface Env {
-  GRANTS_KV: KVNamespace;
-}
-
-// Handle GET requests
-export async function onRequestGET(context: any) {
+export async function onRequestGET(context) {
   const { request, env } = context;
   
   const corsHeaders = {
@@ -62,7 +57,6 @@ export async function onRequestGET(context: any) {
   }
 }
 
-// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,
@@ -74,7 +68,7 @@ export async function onRequestOPTIONS() {
   });
 }
 
-function simpleHash(str: string): string {
+function simpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);

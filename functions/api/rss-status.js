@@ -1,9 +1,5 @@
-// functions/api/rss-status.ts
-// New endpoint for RSS status - this fixes the "useRSSSettings.ts" error
-
-interface Env {
-  GRANTS_KV: KVNamespace;
-}
+// functions/api/rss-status.js
+// RSS status endpoint - JavaScript version
 
 const RSS_FEEDS = [
   {
@@ -17,17 +13,10 @@ const RSS_FEEDS = [
     name: 'NSF Funding Opportunities', 
     type: 'federal',
     active: true
-  },
-  {
-    url: 'https://www.federalregister.gov/agencies/health-and-human-services-department.rss',
-    name: 'HHS Federal Register',
-    type: 'federal', 
-    active: true
   }
 ];
 
-// Handle GET requests
-export async function onRequestGET(context: any) {
+export async function onRequestGET(context) {
   const { request, env } = context;
   
   const corsHeaders = {
@@ -81,7 +70,6 @@ export async function onRequestGET(context: any) {
   }
 }
 
-// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,

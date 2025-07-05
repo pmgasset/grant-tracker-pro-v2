@@ -1,12 +1,7 @@
-// functions/api/search-grants.ts
-// Fixed with proper GET handling
+// functions/api/search-grants.js
+// Web search - JavaScript version
 
-interface Env {
-  GRANTS_KV: KVNamespace;
-}
-
-// Handle GET requests
-export async function onRequestGET(context: any) {
+export async function onRequestGET(context) {
   const { request, env } = context;
   
   const corsHeaders = {
@@ -27,23 +22,6 @@ export async function onRequestGET(context: any) {
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
-    }
-
-    // Check cache first
-    const cacheKey = `web-search:${query}`;
-    let cached = null;
-    if (env.GRANTS_KV) {
-      cached = await env.GRANTS_KV.get(cacheKey);
-    }
-    
-    if (cached) {
-      return new Response(cached, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cache': 'HIT',
-          ...corsHeaders
-        }
       });
     }
 
@@ -72,7 +50,6 @@ export async function onRequestGET(context: any) {
   }
 }
 
-// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,
