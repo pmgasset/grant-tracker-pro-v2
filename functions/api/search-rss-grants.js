@@ -73,7 +73,7 @@ export async function onRequestGET(context) {
   }
 }
 
-export async function onRequestOPTIONS() {
+export async function onRequestOPTIONS(context) {
   return new Response(null, {
     status: 200,
     headers: {
