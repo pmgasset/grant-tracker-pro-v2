@@ -1,10 +1,11 @@
 // functions/api/load-grants.ts
-// Load grants data from KV storage
+// Fixed with proper GET handling
 
 interface Env {
   GRANTS_KV: KVNamespace;
 }
 
+// Handle GET requests
 export async function onRequestGET(context: any) {
   const { request, env } = context;
   
@@ -25,7 +26,10 @@ export async function onRequestGET(context: any) {
       userId = `user_${simpleHash(userAgent + ip)}`;
     }
 
-    const data = await env.GRANTS_KV?.get(`grants:${userId}`, 'json');
+    let data = null;
+    if (env.GRANTS_KV) {
+      data = await env.GRANTS_KV.get(`grants:${userId}`, 'json');
+    }
     
     if (!data) {
       return new Response(JSON.stringify({
@@ -58,6 +62,7 @@ export async function onRequestGET(context: any) {
   }
 }
 
+// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,

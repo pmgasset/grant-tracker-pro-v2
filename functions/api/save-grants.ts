@@ -1,10 +1,11 @@
 // functions/api/save-grants.ts
-// Save grants data to KV storage
+// Fixed with proper POST handling
 
 interface Env {
   GRANTS_KV: KVNamespace;
 }
 
+// Handle POST requests
 export async function onRequestPOST(context: any) {
   const { request, env } = context;
   
@@ -39,11 +40,13 @@ export async function onRequestPOST(context: any) {
     };
 
     // Save to KV
-    await env.GRANTS_KV?.put(
-      `grants:${userId}`,
-      JSON.stringify(saveData),
-      { expirationTtl: 86400 * 30 } // 30 days
-    );
+    if (env.GRANTS_KV) {
+      await env.GRANTS_KV.put(
+        `grants:${userId}`,
+        JSON.stringify(saveData),
+        { expirationTtl: 86400 * 30 } // 30 days
+      );
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -66,6 +69,7 @@ export async function onRequestPOST(context: any) {
   }
 }
 
+// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,

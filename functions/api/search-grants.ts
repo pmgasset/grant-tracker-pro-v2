@@ -1,10 +1,11 @@
 // functions/api/search-grants.ts
-// Main grant search function
+// Fixed with proper GET handling
 
 interface Env {
   GRANTS_KV: KVNamespace;
 }
 
+// Handle GET requests
 export async function onRequestGET(context: any) {
   const { request, env } = context;
   
@@ -20,7 +21,8 @@ export async function onRequestGET(context: any) {
 
     if (!query) {
       return new Response(JSON.stringify({
-        error: 'Query parameter is required',
+        error: true,
+        message: 'Please provide a search query',
         results: []
       }), {
         status: 400,
@@ -30,7 +32,10 @@ export async function onRequestGET(context: any) {
 
     // Check cache first
     const cacheKey = `web-search:${query}`;
-    const cached = await env.GRANTS_KV?.get(cacheKey);
+    let cached = null;
+    if (env.GRANTS_KV) {
+      cached = await env.GRANTS_KV.get(cacheKey);
+    }
     
     if (cached) {
       return new Response(cached, {
@@ -42,12 +47,12 @@ export async function onRequestGET(context: any) {
       });
     }
 
-    // For now, return a message that web search needs API keys
+    // Return message about needing API configuration
     const response = {
       error: true,
-      message: 'Web grant search requires API keys to be configured. Use RSS search or add grants manually.',
+      message: 'Web grant search requires API keys to be configured. Try RSS search for real-time grant discovery, or add grants manually.',
       results: [],
-      suggestion: 'Try the RSS Feeds option for real-time grant discovery.'
+      suggestion: 'Use the RSS Feeds option to search real grant opportunities.'
     };
 
     return new Response(JSON.stringify(response), {
@@ -67,6 +72,7 @@ export async function onRequestGET(context: any) {
   }
 }
 
+// Handle OPTIONS requests (CORS)
 export async function onRequestOPTIONS() {
   return new Response(null, {
     status: 200,
