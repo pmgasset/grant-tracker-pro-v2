@@ -10,12 +10,9 @@ export const useCloudflareSync = () => {
     try {
       setIsSyncing(true);
       
-      // Try to save to Cloudflare Workers/KV
       const response = await fetch('/api/save-grants', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grants,
           timestamp: new Date().toISOString()
@@ -24,13 +21,12 @@ export const useCloudflareSync = () => {
 
       if (response.ok) {
         setLastSyncTime(new Date());
-        console.log('Data synced to Cloudflare successfully');
+        console.log('Data synced successfully');
       } else {
         throw new Error('Sync failed');
       }
     } catch (error) {
       console.log('Offline mode - data saved locally');
-      // Save to localStorage as fallback
       localStorage.setItem('grants_backup', JSON.stringify({
         grants,
         timestamp: new Date().toISOString()
@@ -53,7 +49,6 @@ export const useCloudflareSync = () => {
       }
     } catch (error) {
       console.log('Loading from local backup');
-      // Fallback to localStorage
       const backup = localStorage.getItem('grants_backup');
       if (backup) {
         const data = JSON.parse(backup);
@@ -79,8 +74,6 @@ export const useCloudflareSync = () => {
         throw new Error('Search failed');
       }
     } catch (error) {
-      console.log('Search service unavailable');
-      // Return empty results with error message instead of mock data
       return {
         error: true,
         message: 'Grant search service is currently unavailable. Please try again later or add grants manually.',
@@ -93,7 +86,7 @@ export const useCloudflareSync = () => {
     try {
       const searchParams = new URLSearchParams({
         query,
-        source: 'rss',
+        action: 'search',
         ...filters
       });
 
@@ -106,7 +99,6 @@ export const useCloudflareSync = () => {
         throw new Error('RSS search failed');
       }
     } catch (error) {
-      console.log('RSS feed search service unavailable');
       return {
         error: true,
         message: 'RSS feed monitoring is currently unavailable. Please check your network connection.',
