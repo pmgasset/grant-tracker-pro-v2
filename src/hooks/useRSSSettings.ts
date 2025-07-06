@@ -1,4 +1,4 @@
-// src/hooks/useRSSSettings.ts - Updated to handle errors properly
+// src/hooks/useRSSSettings.ts - Fixed TypeScript errors
 import { useState, useEffect, useCallback } from 'react';
 
 export interface RSSSettings {
@@ -22,7 +22,7 @@ export interface RSSSettings {
 }
 
 const DEFAULT_RSS_SETTINGS: RSSSettings = {
-  enabled: false, // Disabled by default since it's not implemented
+  enabled: false,
   websiteScrapingEnabled: false,
   autoRefresh: false,
   refreshInterval: 360,
@@ -44,7 +44,6 @@ const DEFAULT_RSS_SETTINGS: RSSSettings = {
 export const useRSSSettings = () => {
   const [rssSettings, setRSSSettings] = useState<RSSSettings>(DEFAULT_RSS_SETTINGS);
   const [isLoading, setIsLoading] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Load settings from localStorage on component mount
@@ -193,7 +192,6 @@ export const useRSSSettings = () => {
     isRSSConfigured,
     clearError,
     isLoading,
-    lastSyncTime,
     error
   };
 };

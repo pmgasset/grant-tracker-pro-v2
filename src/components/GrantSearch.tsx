@@ -1,5 +1,5 @@
-// src/components/GrantSearch.tsx - Updated with working RSS functionality
-import React, { useState, useEffect } from 'react';
+// src/components/GrantSearch.tsx - Fixed TypeScript errors
+import React, { useState } from 'react';
 import { 
   Search, 
   Plus, 
@@ -9,14 +9,11 @@ import {
   AlertCircle,
   Wifi,
   WifiOff,
-  Rss,
-  Activity
+  Rss
 } from 'lucide-react';
 import { Grant, SearchFilters, NewGrantForm, SearchResult } from '../types/Grant';
 import { useCloudflareSync } from '../hooks/useCloudflareSync';
-import { useRSSFeed } from '../hooks/useRSSFeed';
 import { formatCurrency, formatDate } from '../utils/formatting';
-import RSSFeedReader from './RSSFeedReader';
 
 interface GrantSearchProps {
   onAddGrant: (grant: Omit<Grant, 'id'>) => void;
@@ -28,8 +25,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchSource, setSearchSource] = useState<'web' | 'rss'>('rss');
-  const [showRSSReader, setShowRSSReader] = useState(true);
+  const [searchSource, setSearchSource] = useState<'web' | 'rss'>('web');
   
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     category: '',
@@ -50,28 +46,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
     url: ''
   });
 
-  const { searchGrants } = useCloudflareSync();
-  const { searchRSSFeeds, loading: rssLoading, error: rssError } = useRSSFeed();
-
-  // Auto-switch to RSS if online and available
-  useEffect(() => {
-    if (isOnline && searchSource === 'web') {
-      // Try a quick RSS test to see if it's working
-      testRSSAvailability();
-    }
-  }, [isOnline]);
-
-  const testRSSAvailability = async () => {
-    try {
-      const response = await fetch('/api/rss-scraper?action=status');
-      if (response.ok) {
-        // RSS is working, suggest using it
-        console.log('RSS service is available');
-      }
-    } catch (error) {
-      console.log('RSS service not available, using web search');
-    }
-  };
+  const { searchGrants, searchRSSFeeds } = useCloudflareSync();
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -84,47 +59,21 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
       let results;
       
       if (searchSource === 'rss') {
-        // Use RSS search
-        const rssResults = await searchRSSFeeds(searchQuery, searchFilters.category, 15);
-        if (rssResults && rssResults.results) {
-          // Convert RSS results to SearchResult format
-          results = rssResults.results.map((item: any, index: number) => ({
-            id: `rss-${Date.now()}-${index}`,
-            title: item.title,
-            funder: item.funder,
-            amount: item.amount,
-            deadline: item.deadline,
-            category: item.category,
-            description: item.description,
-            requirements: item.requirements,
-            source: `RSS: ${item.source}`,
-            url: item.url,
-            matchPercentage: item.matchPercentage,
-            funderType: item.funderType,
-            isSearchResult: true
-          }));
-          setSearchResults(results);
-        } else {
-          throw new Error('No RSS results returned');
-        }
+        results = await searchRSSFeeds(searchQuery, searchFilters);
       } else {
-        // Use web search
-        const webResults = await searchGrants(searchQuery, searchFilters);
-        if (webResults.error) {
-          setSearchError(webResults.message);
-          setSearchResults([]);
-        } else {
-          setSearchResults(webResults.results || webResults);
-          setSearchError(null);
-        }
+        results = await searchGrants(searchQuery, searchFilters);
+      }
+      
+      if (results.error) {
+        setSearchError(results.message);
+        setSearchResults([]);
+      } else {
+        setSearchResults(results.results || results);
+        setSearchError(null);
       }
     } catch (error) {
       console.error('Search failed:', error);
-      setSearchError(
-        searchSource === 'rss' 
-          ? 'RSS feed search is currently unavailable. Try web search or add grants manually.'
-          : 'Web search service is currently unavailable. Try RSS feeds or add grants manually.'
-      );
+      setSearchError('Search service is currently unavailable. Please try again later.');
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -197,7 +146,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
             <span>Grant Discovery</span>
             <div className="flex items-center space-x-1 text-orange-600">
               <Zap className="h-4 w-4" />
-              <span className="text-xs font-medium">Cloudflare Powered</span>
+              <span className="text-xs font-medium">Cloudflare Workers</span>
             </div>
           </h3>
           
@@ -206,49 +155,38 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
             isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}>
             {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-            <span>{isOnline ? 'Online' : 'Offline'}</span>
+            <span>{isOnline ? 'Connected' : 'Offline'}</span>
           </div>
         </div>
         
         <div className="space-y-4">
-          {/* RSS vs Web Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
-              <button
-                onClick={() => setSearchSource('rss')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  searchSource === 'rss'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Rss className="h-4 w-4" />
-                  <span>RSS Feeds</span>
-                  <span className="px-1 py-0.5 bg-green-500 text-white rounded text-xs">Recommended</span>
-                </div>
-              </button>
-              <button
-                onClick={() => setSearchSource('web')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  searchSource === 'web'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Search className="h-4 w-4" />
-                  <span>Web Search</span>
-                </div>
-              </button>
-            </div>
-
+          {/* Search Source Toggle */}
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
             <button
-              onClick={() => setShowRSSReader(!showRSSReader)}
-              className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"
+              onClick={() => setSearchSource('web')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                searchSource === 'web'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
             >
-              <Activity className="h-4 w-4" />
-              <span>{showRSSReader ? 'Hide' : 'Show'} RSS Monitor</span>
+              <div className="flex items-center space-x-2">
+                <Search className="h-4 w-4" />
+                <span>Web Search</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSearchSource('rss')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                searchSource === 'rss'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Rss className="h-4 w-4" />
+                <span>RSS Feeds</span>
+              </div>
             </button>
           </div>
 
@@ -344,7 +282,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
             />
           </div>
 
-          {/* Status Messages */}
+          {/* Offline Notice */}
           {!isOnline && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-yellow-800 text-sm flex items-center">
@@ -354,6 +292,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
             </div>
           )}
 
+          {/* Search Error Display */}
           {searchError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-start space-x-3">
@@ -362,38 +301,14 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
                   <h4 className="text-red-800 font-medium">Search Unavailable</h4>
                   <p className="text-red-700 text-sm mt-1">{searchError}</p>
                   <p className="text-red-600 text-xs mt-2">
-                    You can still add grants manually using the form below or try the {searchSource === 'rss' ? 'web search' : 'RSS feeds'} option.
+                    You can still add grants manually using the form below.
                   </p>
                 </div>
               </div>
             </div>
           )}
-
-          {rssError && searchSource === 'rss' && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <p className="text-orange-800 text-sm flex items-center">
-                <Rss className="h-4 w-4 mr-2" />
-                RSS Error: {rssError}
-              </p>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* RSS Feed Reader */}
-      {showRSSReader && isOnline && (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <RSSFeedReader
-            query={searchQuery}
-            category={searchFilters.category}
-            limit={10}
-            autoRefresh={true}
-            refreshInterval={30}
-            onAddGrant={onAddGrant}
-            showAddButton={true}
-          />
-        </div>
-      )}
 
       {/* Search Results */}
       {searchResults.length > 0 && (
@@ -408,7 +323,7 @@ const GrantSearch: React.FC<GrantSearchProps> = ({ onAddGrant, isOnline }) => {
               {searchSource === 'rss' && (
                 <div className="flex items-center space-x-1 text-blue-600 text-sm">
                   <Rss className="h-4 w-4" />
-                  <span>RSS Data</span>
+                  <span>RSS Feeds</span>
                 </div>
               )}
             </div>
